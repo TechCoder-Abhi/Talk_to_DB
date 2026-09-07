@@ -1,0 +1,37 @@
+{
+  "name": "talk-to-db-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "2.8.0",
+    "@nestjs/common": "11.1.26",
+    "@nestjs/config": "4.0.4",
+    "@nestjs/core": "11.1.26",
+    "@nestjs/platform-fastify": "11.1.26",
+    "@nestjs/platform-socket.io": "11.1.26",
+    "@nestjs/websockets": "11.1.26",
+    "better-sqlite3": "^12.11.1",
+    "groq-sdk": "1.2.1",
+    "mongodb": "^7.3.0",
+    "mysql2": "^3.22.5",
+    "openai": "6.42.0",
+    "pg": "8.21.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "socket.io": "4.8.3",
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "11.0.23",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "25.9.2",
+    "@types/pg": "8.20.0",
+    "typescript": "6.0.3"
+  }
+}
