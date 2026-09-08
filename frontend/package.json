@@ -1,0 +1,31 @@
+{
+  "name": "talk-to-db-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/react-syntax-highlighter": "15.5.13",
+    "lucide-react": "1.17.0",
+    "next": "16.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-syntax-highlighter": "16.1.1",
+    "recharts": "3.8.1",
+    "socket.io-client": "4.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.2",
+    "@types/react": "19.2.17",
+    "autoprefixer": "10.5.0",
+    "eslint": "10.4.1",
+    "eslint-config-next": "16.2.7",
+    "postcss": "8.5.15",
+    "tailwindcss": "4.3.0",
+    "typescript": "6.0.3"
+  }
+}
