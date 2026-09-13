@@ -30,7 +30,8 @@ function normalizeRows(rows: Record<string, unknown>[]): Record<string, string |
       if (typeof value === 'number') {
         normalized[key] = value;
       } else if (typeof value === 'bigint') {
-        normalized[key] = Number(value);
+        const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+        normalized[key] = value <= maxSafe && value >= -maxSafe ? Number(value) : value.toString();
       } else {
         normalized[key] = value === null || value === undefined ? '' : String(value);
       }

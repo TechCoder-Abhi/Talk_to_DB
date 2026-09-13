@@ -37,32 +37,46 @@ export default function Page() {
   const socketRef = useRef<Socket | null>(null);
   const activeAssistantId = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const schemaAbortRef = useRef<AbortController | null>(null);
 
-  const loadSchema = useCallback(async (connectionId?: string) => {
+  const loadSchema = useCallback(async (connectionId?: string, signal?: AbortSignal) => {
+    const controller = signal ? undefined : new AbortController();
+    if (controller) {
+      schemaAbortRef.current?.abort();
+      schemaAbortRef.current = controller;
+    }
+    const requestSignal = signal ?? controller!.signal;
     setSchemaLoading(true);
     try {
       const url = connectionId
         ? `${API_URL}/schema?connectionId=${encodeURIComponent(connectionId)}`
         : `${API_URL}/schema`;
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: requestSignal });
       if (!response.ok) {
         throw new Error(await response.text());
       }
       const data = (await response.json()) as SchemaInfo;
-      setSchema(data);
+      if (!requestSignal.aborted) {
+        setSchema(data);
+      }
     } catch {
-      setSchema({ tables: [], generatedAt: new Date().toISOString() });
+      if (!requestSignal.aborted) {
+        setSchema({ tables: [], generatedAt: new Date().toISOString() });
+      }
     } finally {
-      setSchemaLoading(false);
+      if (!requestSignal.aborted) {
+        setSchemaLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     async function load() {
       try {
         const [connRes] = await Promise.all([
-          fetch(`${API_URL}/connections`),
+          fetch(`${API_URL}/connections`, { signal: controller.signal }),
         ]);
         if (!cancelled) {
           if (connRes.ok) {
@@ -72,16 +86,16 @@ export default function Page() {
             const connId = defaultConn?.id;
             setActiveConnectionId(connId);
             setConnectionsLoading(false);
-            await loadSchema(connId);
+            await loadSchema(connId, controller.signal);
           } else {
             setConnectionsLoading(false);
-            await loadSchema();
+            await loadSchema(undefined, controller.signal);
           }
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !controller.signal.aborted) {
           setConnectionsLoading(false);
-          await loadSchema();
+          await loadSchema(undefined, controller.signal);
         }
       }
     }
@@ -89,6 +103,7 @@ export default function Page() {
     void load();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [loadSchema]);
 
@@ -269,6 +284,7 @@ export default function Page() {
             type="button"
             onClick={() => setSchemaOpen((current) => !current)}
             title="Toggle schema"
+            aria-label="Toggle schema panel"
           >
             <Menu size={18} />
           </button>
@@ -320,6 +336,7 @@ export default function Page() {
         <form className="input-bar" onSubmit={handleSubmit}>
           <textarea
             value={question}
+            aria-label="Ask a database question"
             placeholder="Ask a database question..."
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={(event) => {
@@ -334,6 +351,7 @@ export default function Page() {
             type="submit"
             disabled={busy || !question.trim()}
             title="Send"
+            aria-label="Send question"
           >
             <SendHorizonal size={19} />
           </button>

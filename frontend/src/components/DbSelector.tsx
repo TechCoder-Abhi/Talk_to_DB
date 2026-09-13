@@ -24,15 +24,18 @@ export function DbSelector({ connections, activeId, loading, onSelect }: DbSelec
     return null;
   }
 
-  const active = connections.find((c) => c.id === activeId);
+  const resolvedActiveId = connections.some((connection) => connection.id === activeId)
+    ? activeId
+    : connections[0]?.id ?? '';
 
   return (
     <div className="db-selector">
       <Database size={14} />
       <select
-        value={activeId ?? ''}
-        onChange={(e) => onSelect(e.target.value)}
+        value={resolvedActiveId}
+        onChange={(event) => onSelect(event.target.value)}
         className="db-select"
+        aria-label="Database connection"
       >
         {connections.map((conn) => (
           <option key={conn.id} value={conn.id}>

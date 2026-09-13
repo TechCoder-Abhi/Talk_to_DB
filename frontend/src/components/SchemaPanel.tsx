@@ -29,6 +29,7 @@ export function SchemaPanel({ schema, loading, open = true }: SchemaPanelProps) 
       </div>
       <input
         className="schema-search"
+        aria-label="Search tables"
         placeholder="Search tables"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
