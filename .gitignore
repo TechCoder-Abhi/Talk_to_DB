@@ -10,5 +10,4 @@ yarn-error.log*
 .DS_Store
 coverage/
 *.tsbuildinfo
-data/
-README.md
+data/*
