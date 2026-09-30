@@ -7,6 +7,11 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseMaxRows(value: string | undefined, fallback: number): number {
+  const parsed = parseInteger(value, fallback);
+  return Math.min(Math.max(parsed, 1), 10_000);
+}
+
 function parseProvider(value: string | undefined): AiProviderMode {
   if (value === 'gemini' || value === 'groq' || value === 'auto') {
     return value;
@@ -55,7 +60,7 @@ function parseDatabases(): DbConnectionConfig[] {
   }
 
   const schemaFallback = process.env.DB_SCHEMA ?? 'public';
-  const maxRowsFallback = parseInteger(process.env.MAX_ROWS, 500);
+  const maxRowsFallback = parseMaxRows(process.env.MAX_ROWS, 500);
 
   // Option B: Numbered env vars DATABASE_URL1, DATABASE_URL2, ...
   const numberedConns: DbConnectionConfig[] = [];
@@ -64,7 +69,7 @@ function parseDatabases(): DbConnectionConfig[] {
     if (!url) continue;
     const name = process.env[`DB_NAME${i}`] ?? extractDbName(url);
     const schema = process.env[`DB_SCHEMA${i}`] ?? schemaFallback;
-    const maxRows = parseInteger(process.env[`MAX_ROWS${i}`] as string | undefined, maxRowsFallback);
+    const maxRows = parseMaxRows(process.env[`MAX_ROWS${i}`] as string | undefined, maxRowsFallback);
     numberedConns.push(connectionFromUrl(url, `db${i}`, name, schema, maxRows));
   }
   if (numberedConns.length > 0) return numberedConns;
@@ -83,7 +88,7 @@ export default () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000',
   databases: parseDatabases(),
-  cacheTtl: parseInteger(process.env.CACHE_TTL, 300),
+  cacheTtl: Math.max(0, parseInteger(process.env.CACHE_TTL, 300)),
   cacheSimilarityThreshold: (() => {
     const v = Number.parseFloat(process.env.CACHE_SIMILARITY_THRESHOLD ?? '0.92');
     return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.92;

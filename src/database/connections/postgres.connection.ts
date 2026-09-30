@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { Pool, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult } from 'pg';
 import { DbConnection, DbConnectionConfig, QueryExecution, TableInfo, ColumnInfo } from './connection.interface';
 
 interface TableRow extends Record<string, unknown> {
@@ -69,22 +69,29 @@ export class PostgresConnection extends DbConnection {
     }
 
     const executionQuery = this.applyLimit(trimmedQuery, this.maxRows);
-    const limited = executionQuery !== trimmedQuery;
+    const limited = false;
 
+    let client: PoolClient | undefined;
     try {
-      const result = await this.queryInternal(executionQuery);
+      if (!this.pool) throw new Error(`Connection ${this.id} is not initialized`);
+      client = await this.pool.connect();
+      await client.query('BEGIN READ ONLY');
+      await client.query("SET LOCAL statement_timeout = '15s'");
+      const result = await client.query(executionQuery);
+      await client.query('ROLLBACK');
       return {
-        query: executionQuery,
+        query: trimmedQuery,
         rows: result.rows as Record<string, unknown>[],
         rowCount: result.rowCount ?? result.rows.length,
         columns: result.fields.map((field) => field.name),
         durationMs: Date.now() - startedAt,
-        limited,
+        limited: result.rows.length >= this.maxRows,
       };
     } catch (error) {
+      await client?.query('ROLLBACK').catch(() => {});
       const message = error instanceof Error ? error.message : String(error);
       return {
-        query: executionQuery,
+        query: trimmedQuery,
         rows: [],
         rowCount: 0,
         columns: [],
@@ -92,6 +99,8 @@ export class PostgresConnection extends DbConnection {
         error: message,
         limited,
       };
+    } finally {
+      client?.release();
     }
   }
 
@@ -205,7 +214,7 @@ export class PostgresConnection extends DbConnection {
     if (!/^\s*(select|with)\b/i.test(scrubbed)) {
       return 'Only read-only SELECT queries are allowed.';
     }
-    const forbidden = /\b(drop|delete|truncate|insert|update|create|alter|grant|revoke|merge|call|copy|execute)\b/i;
+    const forbidden = /\b(drop|delete|truncate|insert|update|create|alter|grant|revoke|merge|call|copy|execute|into|vacuum|analyze|refresh|listen|notify|set|reset)\b/i;
     const match = scrubbed.match(forbidden);
     if (match) return `Read-only safety check blocked forbidden keyword: ${match[1].toUpperCase()}.`;
     const semicolonBeforeEnd = /;\s*\S/.test(scrubbed);
@@ -224,9 +233,9 @@ export class PostgresConnection extends DbConnection {
 
   private applyLimit(sql: string, maxRows: number): string {
     const withoutSemicolon = sql.replace(/;\s*$/, '');
-    const scrubbed = this.scrubSql(withoutSemicolon);
-    if (/\blimit\s+\d+\b/i.test(scrubbed)) return withoutSemicolon;
-    return `${withoutSemicolon} LIMIT ${maxRows}`;
+    // A top-level wrapper caps rows even when the query contains nested LIMITs,
+    // UNIONs, or a model supplied LIMIT larger than the configured maximum.
+    return `SELECT * FROM (${withoutSemicolon}) AS _talk_to_db_result LIMIT ${maxRows}`;
   }
 
   private isSafeIdentifier(identifier: string): boolean {

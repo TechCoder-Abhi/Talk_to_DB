@@ -1,6 +1,9 @@
-export function buildSystemPrompt(schemaString: string, queryLanguage: 'sql' | 'mongodb', dbName: string): string {
+import { DbType } from '../database/connections/connection.interface';
+
+export function buildSystemPrompt(schemaString: string, databaseType: DbType, dbName: string): string {
+  const queryLanguage = databaseType === 'mongodb' ? 'mongodb' : 'sql';
   const queryTool = queryLanguage === 'mongodb' ? 'execute_query' : 'execute_sql';
-  const queryLang = queryLanguage === 'mongodb' ? 'MongoDB' : 'SQL';
+  const queryLang = databaseType === 'mongodb' ? 'MongoDB' : `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} SQL`;
 
   return `You are Talk_to_DB, an expert data analyst AI with access to a **${dbName}** database (${queryLang}).
 
@@ -21,6 +24,9 @@ RULES:
 - If a question is ambiguous, make a reasonable assumption and state it in the answer.
 - If you cannot answer with the available schema, explain why using the answer tool.
 - Never guess data; always query for it.
+- The DATABASE SCHEMA above is authoritative. For questions asking only for table or column names, answer directly from it without running a metadata query.
+- Never use SQLite metadata such as sqlite_master or PRAGMA. SQLite is not supported by this application.
+- Use only the tables and columns listed in the supplied schema. Do not invent tables, columns, or metadata sources.
 - Prefer specific field names over SELECT *.
 - If results were limited by MAX_ROWS, mention that limitation in the answer.${queryLanguage === 'mongodb' ? `
 - For MongoDB queries, use JSON format: { "collection": "...", "type": "find|aggregate", "filter": {...}, "projection": {...}, "sort": {...}, "limit": N }` : ''}

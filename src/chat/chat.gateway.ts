@@ -14,7 +14,10 @@ interface QueryPayload {
   connectionId?: string;
 }
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/chat' })
+@WebSocketGateway({
+  cors: { origin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000' },
+  namespace: '/chat',
+})
 export class ChatGateway {
   @WebSocketServer()
   server!: Server;
@@ -30,6 +33,10 @@ export class ChatGateway {
       const question = data.question?.trim();
       if (!question) {
         client.emit('agent:error', { message: 'question is required' });
+        return;
+      }
+      if (question.length > 4_000) {
+        client.emit('agent:error', { message: 'question must be 4,000 characters or fewer' });
         return;
       }
 

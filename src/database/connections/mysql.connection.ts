@@ -79,23 +79,30 @@ export class MysqlConnection extends DbConnection {
     }
 
     const executionQuery = this.applyLimit(trimmedQuery, this.maxRows);
-    const limited = executionQuery !== trimmedQuery;
+    const limited = false;
 
+    let conn: PoolConnection | undefined;
     try {
-      const [rows, fields] = await this.pool!.query<RowDataPacket[]>(executionQuery);
+      if (!this.pool) throw new Error(`Connection ${this.id} is not initialized`);
+      conn = await this.pool.getConnection();
+      await conn.query('SET TRANSACTION READ ONLY');
+      await conn.beginTransaction();
+      const [rows, fields] = await conn.query<RowDataPacket[]>(executionQuery);
+      await conn.rollback();
       const rowData = rows as Record<string, unknown>[];
       return {
-        query: executionQuery,
+        query: trimmedQuery,
         rows: rowData,
         rowCount: rowData.length,
         columns: (fields as FieldPacket[]).map((f) => f.name),
         durationMs: Date.now() - startedAt,
-        limited,
+        limited: rowData.length >= this.maxRows,
       };
     } catch (error) {
+      await conn?.rollback().catch(() => {});
       const message = error instanceof Error ? error.message : String(error);
       return {
-        query: executionQuery,
+        query: trimmedQuery,
         rows: [],
         rowCount: 0,
         columns: [],
@@ -103,6 +110,8 @@ export class MysqlConnection extends DbConnection {
         error: message,
         limited,
       };
+    } finally {
+      conn?.release();
     }
   }
 
@@ -186,7 +195,7 @@ export class MysqlConnection extends DbConnection {
     if (!/^\s*(select|with)\b/i.test(scrubbed)) {
       return 'Only read-only SELECT queries are allowed.';
     }
-    const forbidden = /\b(drop|delete|truncate|insert|update|create|alter|grant|revoke|merge|call|copy|execute|replace|load)\b/i;
+    const forbidden = /\b(drop|delete|truncate|insert|update|create|alter|grant|revoke|merge|call|copy|execute|replace|load|into|outfile|dumpfile|set|reset|lock|unlock)\b/i;
     const match = scrubbed.match(forbidden);
     if (match) return `Read-only safety check blocked forbidden keyword: ${match[1].toUpperCase()}.`;
     const semicolonBeforeEnd = /;\s*\S/.test(scrubbed);
@@ -206,9 +215,8 @@ export class MysqlConnection extends DbConnection {
 
   private applyLimit(sql: string, maxRows: number): string {
     const withoutSemicolon = sql.replace(/;\s*$/, '');
-    const scrubbed = this.scrubSql(withoutSemicolon);
-    if (/\blimit\s+\d+\b/i.test(scrubbed)) return withoutSemicolon;
-    return `${withoutSemicolon} LIMIT ${maxRows}`;
+    // The outer cap also catches nested limits and UNION results.
+    return `SELECT * FROM (${withoutSemicolon}) AS _talk_to_db_result LIMIT ${maxRows}`;
   }
 
   private isSafeIdentifier(identifier: string): boolean {

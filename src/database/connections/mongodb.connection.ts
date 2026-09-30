@@ -61,7 +61,7 @@ export class MongoDbConnection extends DbConnection {
       };
     }
 
-    if (!parsed.collection || !parsed.type) {
+    if (typeof parsed.collection !== 'string' || !parsed.collection || !['find', 'aggregate'].includes(parsed.type)) {
       return {
         query: trimmedQuery,
         rows: [],
@@ -76,23 +76,31 @@ export class MongoDbConnection extends DbConnection {
     try {
       const coll = this.db!.collection(parsed.collection);
       let rows: Record<string, unknown>[];
-      let limit = parsed.limit ?? this.maxRows;
+      const requestedLimit = Number.isInteger(parsed.limit) && (parsed.limit as number) > 0
+        ? Math.min(parsed.limit as number, this.maxRows)
+        : this.maxRows;
 
       if (parsed.type === 'aggregate') {
-        const pipeline = parsed.pipeline ?? [];
-        if (!pipeline.some((s: Record<string, unknown>) => '$limit' in s || s.$limit)) {
-          pipeline.push({ $limit: limit });
+        if (parsed.pipeline !== undefined && !Array.isArray(parsed.pipeline)) {
+          throw new Error('Aggregation pipeline must be an array.');
         }
-        const cursor = coll.aggregate(pipeline, { allowDiskUse: true });
+        const pipeline = [...(parsed.pipeline ?? [])];
+        const writeStage = pipeline.find((stage) => '$out' in stage || '$merge' in stage);
+        if (writeStage) {
+          throw new Error('Write stages ($out and $merge) are not allowed.');
+        }
+        // Always cap the final result, even when the model supplied a larger $limit.
+        pipeline.push({ $limit: requestedLimit });
+        const cursor = coll.aggregate(pipeline, { allowDiskUse: false, maxTimeMS: 10_000 });
         rows = (await cursor.toArray()) as Record<string, unknown>[];
       } else {
         let cursor = coll.find(parsed.filter ?? {}, { projection: parsed.projection });
         if (parsed.sort) cursor = cursor.sort(parsed.sort as Sort);
-        cursor = cursor.limit(limit);
+        cursor = cursor.limit(requestedLimit).maxTimeMS(10_000);
         rows = (await cursor.toArray()) as Record<string, unknown>[];
       }
 
-      const limited = rows.length >= (parsed.limit ?? this.maxRows);
+      const limited = rows.length >= requestedLimit;
       const columns = this.extractColumns(rows);
 
       return {

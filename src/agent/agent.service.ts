@@ -119,6 +119,13 @@ export class AgentService {
       };
     }
 
+    const schemaAnswer = this.answerSchemaQuestion(trimmedQuestion, schema.tables);
+    if (schemaAnswer) {
+      const step: AgentStep = { type: 'answer', content: schemaAnswer };
+      onStep?.(step);
+      return { steps: [step], finalAnswer: schemaAnswer, chartType: 'none', success: true };
+    }
+
     const cacheKey = this.makeCacheKey(trimmedQuestion, activeConnectionId, schema);
     const cached = this.responseCache.get(cacheKey);
     if (cached) {
@@ -139,7 +146,7 @@ export class AgentService {
       return semanticHit.response;
     }
 
-    const systemPrompt = buildSystemPrompt(schemaString, queryLanguage, dbName);
+    const systemPrompt = buildSystemPrompt(schemaString, conn.type, dbName);
     const tools = getTools(queryLanguage);
     const providers = this.resolveProviders();
     if (providers.length === 0) {
@@ -390,6 +397,30 @@ export class AgentService {
     onStep(step);
   }
 
+  private answerSchemaQuestion(
+    question: string,
+    tables: SchemaInfo['tables'],
+  ): string | undefined {
+    const normalized = question.toLowerCase();
+    const asksTables = /\b(table|tables|collection|collections)\b/.test(normalized) &&
+      /\b(show|list|name|names|what|which|available|database|schema)\b/.test(normalized);
+    const asksColumns = /\b(column|columns|field|fields)\b/.test(normalized) &&
+      /\b(show|list|name|names|what|which|of|for|schema|structure)\b/.test(normalized);
+
+    if (asksTables && !asksColumns) {
+      return `Available tables/collections: ${tables.map((table) => `\`${table.name}\``).join(', ')}.`;
+    }
+    if (!asksColumns) return undefined;
+
+    const mentioned = tables.filter((table) => normalized.includes(table.name.toLowerCase()));
+    const targets = mentioned.length > 0 ? mentioned : tables;
+    const lines = targets.map((table) => {
+      const columns = table.columns.map((column) => `\`${column.name}\` (${column.type})`).join(', ');
+      return `**${table.name}:** ${columns || 'No columns were found in the schema.'}`;
+    });
+    return lines.join('\n\n');
+  }
+
   private resolveProviders(): AiProvider[] {
     const mode = this.configService.get<string>('ai.provider', 'auto');
     const configured = [this.geminiProvider, this.groqProvider].filter((provider) =>
@@ -411,7 +442,10 @@ export class AgentService {
   }
 
   private schemaFingerprint(schema: SchemaInfo): string {
+    // Bump this namespace when prompt/query semantics change so old semantic
+    // cache entries cannot return answers generated under earlier rules.
     let hash = 5381;
+    for (const char of 'agent-v2') hash = ((hash << 5) + hash + char.charCodeAt(0)) | 0;
     for (const table of schema.tables) {
       hash = ((hash << 5) + hash + this.strCode(table.name)) | 0;
       hash = ((hash << 5) + hash + table.rowCount) | 0;

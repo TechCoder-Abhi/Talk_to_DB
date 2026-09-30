@@ -31,9 +31,12 @@ export class ChatController {
   }
 
   @Post('chat')
-  async chat(@Body() body: { question?: string; connectionId?: string }) {
+  async chat(@Body() body: { question?: string; connectionId?: string } = {}) {
     if (!body.question?.trim()) {
       throw new BadRequestException('question is required');
+    }
+    if (body.question.length > 4_000) {
+      throw new BadRequestException('question must be 4,000 characters or fewer');
     }
     return this.agentService.runAgent(body.question, body.connectionId);
   }
