@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Talk_to_DB',
-  description: 'Natural language database agent for PostgreSQL, MySQL, and MongoDB',
+  title: 'Talk to DB — Ask your data',
+  description: 'Explore PostgreSQL, MySQL, and MongoDB with natural language.',
 };
 
 export default function RootLayout({

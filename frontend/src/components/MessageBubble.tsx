@@ -1,9 +1,7 @@
 'use client';
 
 import { Message } from './types';
-import { DataTable } from './DataTable';
 import { ResultChart } from './ResultChart';
-import { SqlBlock } from './SqlBlock';
 import { ThinkingIndicator } from './ThinkingIndicator';
 
 interface MessageBubbleProps {
@@ -46,16 +44,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           <div
             className="message-content"
             dangerouslySetInnerHTML={renderMarkdownLite(message.content)}
-          />
-        ) : null}
-        {assistant && message.sql ? (
-          <SqlBlock sql={message.sql} defaultOpen={false} />
-        ) : null}
-        {assistant && message.rows && message.columns ? (
-          <DataTable
-            rows={message.rows}
-            columns={message.columns}
-            rowCount={message.rows.length}
           />
         ) : null}
         {showChart ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, SendHorizonal } from 'lucide-react';
+import { ArrowUp, Menu, Sparkles } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { AgentResponse, AgentStep, DbConnectionInfo, Message, SchemaInfo } from '@/components/types';
 import { MessageBubble } from '@/components/MessageBubble';
@@ -9,13 +9,6 @@ import { SchemaPanel } from '@/components/SchemaPanel';
 import { DbSelector } from '@/components/DbSelector';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-const EXAMPLES = [
-  'How many users signed up this month?',
-  'Show me the top 10 most active users',
-  "What's the average order value by country?",
-  'List tables with the most rows',
-];
 
 function createId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -187,6 +180,12 @@ export default function Page() {
     () => messages.some((message) => message.role === 'assistant' && message.isStreaming),
     [messages],
   );
+  const examples = useMemo(() => {
+    const table = schema?.tables[0]?.name;
+    return table
+      ? [`Show me 10 rows from ${table}`, `What columns are in ${table}?`, `How many rows are in ${table}?`]
+      : ['What tables are available?', 'Show me a sample of the data'];
+  }, [schema]);
 
   function sendPrompt(prompt: string) {
     const trimmed = prompt.trim();
@@ -299,21 +298,29 @@ export default function Page() {
               void loadSchema(id);
             }}
           />
-          <span className="provider-pill">
-            {connected ? 'streaming' : 'REST fallback'}
+          <div className="header-center">
+            <span className="chat-title">Query workspace</span>
+            <span className="header-caption">Ask questions about your live data</span>
+          </div>
+          <span className={`connection-status ${connected ? 'online' : ''}`}>
+            <span className="status-dot" />
+            {connected ? 'Live connection' : 'REST mode'}
           </span>
         </header>
 
         <div className="messages">
           {messages.length === 0 ? (
             <div className="empty-state">
-              <h2 className="empty-title">Query PostgreSQL in plain English</h2>
+              <div className="welcome-icon"><Sparkles size={21} /></div>
+              <div className="eyebrow">NATURAL LANGUAGE DATA EXPLORER</div>
+              <h2 className="empty-title">Your data, ready to answer.</h2>
               <p className="empty-copy">
-                Ask a question. Talk_to_DB will inspect the schema, write SQL, execute it,
-                and correct failures before answering.
+                Ask a question in plain English. Explore the schema, inspect the generated query,
+                and get a clear answer with data you can verify.
               </p>
+              <div className="suggestion-label">Try asking</div>
               <div className="example-grid">
-                {EXAMPLES.map((example) => (
+                {examples.map((example) => (
                   <button
                     className="example-chip"
                     key={example}
@@ -334,18 +341,21 @@ export default function Page() {
         </div>
 
         <form className="input-bar" onSubmit={handleSubmit}>
-          <textarea
-            value={question}
-            aria-label="Ask a database question"
-            placeholder="Ask a database question..."
-            onChange={(event) => setQuestion(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendPrompt(question);
-              }
-            }}
-          />
+          <div className="composer-field">
+            <textarea
+              value={question}
+              aria-label="Ask a database question"
+              placeholder="Ask a question about your data..."
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  sendPrompt(question);
+                }
+              }}
+            />
+            <span className="composer-hint">Enter to send · Shift + Enter for a new line</span>
+          </div>
           <button
             className="send-button"
             type="submit"
@@ -353,7 +363,7 @@ export default function Page() {
             title="Send"
             aria-label="Send question"
           >
-            <SendHorizonal size={19} />
+            <ArrowUp size={19} />
           </button>
         </form>
       </section>

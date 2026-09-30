@@ -24,8 +24,8 @@ export function SchemaPanel({ schema, loading, open = true }: SchemaPanelProps) 
   return (
     <aside className={`schema-panel ${open ? 'open' : ''}`}>
       <div className="schema-header">
-        <h1 className="schema-title">Talk_to_DB</h1>
-        <span className="badge">{schema?.tables.length ?? 0} tables</span>
+        <h1 className="schema-title">Talk to DB</h1>
+        <span className="badge">{schema?.tables.length ?? 0} {schema?.tables.length === 1 ? 'table' : 'tables'}</span>
       </div>
       <input
         className="schema-search"

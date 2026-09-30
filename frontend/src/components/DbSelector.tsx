@@ -20,7 +20,7 @@ export function DbSelector({ connections, activeId, loading, onSelect }: DbSelec
     );
   }
 
-  if (connections.length <= 1) {
+  if (connections.length === 0) {
     return null;
   }
 
@@ -31,18 +31,22 @@ export function DbSelector({ connections, activeId, loading, onSelect }: DbSelec
   return (
     <div className="db-selector">
       <Database size={14} />
-      <select
-        value={resolvedActiveId}
-        onChange={(event) => onSelect(event.target.value)}
-        className="db-select"
-        aria-label="Database connection"
-      >
-        {connections.map((conn) => (
-          <option key={conn.id} value={conn.id}>
-            {conn.name} ({conn.type})
-          </option>
-        ))}
-      </select>
+      {connections.length === 1 ? (
+        <span className="db-current">{connections[0].name}<span className="db-type">{connections[0].type}</span></span>
+      ) : (
+        <select
+          value={resolvedActiveId}
+          onChange={(event) => onSelect(event.target.value)}
+          className="db-select"
+          aria-label="Database connection"
+        >
+          {connections.map((conn) => (
+            <option key={conn.id} value={conn.id}>
+              {conn.name} ({conn.type})
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
