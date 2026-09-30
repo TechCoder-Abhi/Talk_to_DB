@@ -50,6 +50,28 @@ For each question, the backend:
 
 The database layer uses a shared `DbConnection` abstraction, so the agent does not depend on a specific database driver. The provider layer gives Gemini and Groq the same application-level contract.
 
+## Engineering Highlights
+
+- **Provider abstraction:** Gemini and Groq share one tool-call interface, allowing the agent loop to switch providers without changing database code.
+- **Database abstraction:** PostgreSQL, MySQL, and MongoDB implement the same connection contract for schema discovery and query execution.
+- **Guarded execution:** SQL is restricted to read queries, result limits are enforced, MongoDB write aggregation stages are rejected, and each agent run has bounded query attempts.
+- **Useful feedback:** Agent steps stream to the UI over Socket.IO, with a REST path when a socket is unavailable.
+- **Performance:** Schema metadata and successful responses are cached; semantic caching can reuse answers to closely related questions.
+
+This is a portfolio project and local prototype. It does not include user authentication or tenant isolation, so it should only be exposed in a trusted environment. For any deployment with untrusted users, add authentication, authorization per connection, request throttling, and server-side query cancellation. Configure database credentials with read-only privileges as an additional safety boundary.
+
+## Current Limitations
+
+- Semantic caching requires a Gemini API key, even when Groq is the primary answer provider.
+- MongoDB schema fields are inferred from a small sample of documents and may not represent every document shape.
+- Database connections are loaded at startup from environment configuration; users cannot add connections through the UI.
+- Query safety checks are defense in depth, not a replacement for database-level read-only credentials.
+- There is no built-in login, user management, or deployment configuration for a public multi-user service.
+
+## Portfolio Walkthrough
+
+When presenting this project, connect a sample database, ask a question that needs a join or aggregation, then show the generated query, bounded result table, and chart. Explain the provider and database interfaces, and discuss the security trade-offs of executing model-generated queries. A short screen recording and screenshots of the connected and result states make the repository easier to evaluate.
+
 ## Stack
 
 **Backend:** NestJS, Fastify, TypeScript, Socket.IO, `pg`, `mysql2`, MongoDB driver, `better-sqlite3`, and `sqlite-vec`.
