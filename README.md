@@ -1,113 +1,155 @@
-# Talk_to_DB
+# Talk to DB
 
-Talk_to_DB is a full-stack natural-language database assistant. A user asks a question in plain English, and the application uses the selected database schema to generate and execute a read-only SQL or MongoDB query. The result is returned as a clear answer with the generated query, table data, and an optional chart.
+Talk to DB is a full-stack AI data exploration tool that lets users ask questions about a live database in plain English. The application inspects the selected database schema, generates a read-only query, executes it through a guarded database adapter, and presents the answer with the query, result table, and optional chart.
 
-The application supports PostgreSQL, MySQL, and MongoDB. Multiple connections can be configured at the same time and selected from the frontend.
+It is designed to make database exploration accessible to people who understand the business question but do not want to write SQL or MongoDB queries by hand.
 
-## Features
+## Why This Project Matters
 
-- Natural-language questions over relational and MongoDB data
-- PostgreSQL, MySQL, and MongoDB support
-- Multiple database connections with runtime selection
-- Schema introspection with table, column, key, and row-count metadata
-- Gemini and Groq provider support with optional fallback
-- Tool-based agent loop for query execution and answer generation
-- Read-only SQL enforcement and automatic result limits
-- MongoDB `find` and `aggregate` query support
-- Streaming agent steps over Socket.IO
-- REST fallback when WebSocket streaming is unavailable
-- SQL/JSON display, result tables, and bar or line charts
-- Exact response caching and optional semantic caching with SQLite vector search
+Traditional database tools require users to know the schema and query language before they can explore data. Talk to DB creates a guided layer between the user and the database while keeping the generated query visible and the execution bounded.
 
-## Architecture
+The project demonstrates how to combine:
 
-The repository contains two applications:
+- Natural-language AI workflows
+- Schema-aware query generation
+- Multiple database drivers behind one interface
+- Streaming user feedback
+- Read-only query safeguards
+- Response caching and semantic similarity search
+- A practical full-stack TypeScript architecture
+
+## Product Capabilities
+
+- Ask questions about PostgreSQL, MySQL, or MongoDB data in plain English.
+- Configure one or multiple database connections through environment variables.
+- Browse schema metadata including tables, collections, columns, keys, and row counts.
+- Choose between Gemini and Groq as the AI provider, with automatic provider fallback.
+- Watch agent progress as the system inspects the schema, creates a query, executes it, and writes an answer.
+- Review the generated SQL or MongoDB operation instead of treating the answer as a black box.
+- Inspect results in a structured table and visualize suitable results with bar or line charts.
+- Use REST when Socket.IO streaming is unavailable.
+- Reuse exact responses through a TTL cache and optionally reuse semantically similar responses through a local SQLite vector cache.
+
+## How It Works
 
 ```text
-Browser
+User
   |
-  +-- Next.js frontend :3000
-          |
-          +-- Socket.IO / REST
-                  |
-                  +-- NestJS backend :3001
-                          |
-                          +-- Agent service
-                          +-- Schema service
-                          +-- Database connections
-                          +-- Gemini or Groq
+  v
+Next.js chat interface (:3000)
+  |  Socket.IO streaming or REST
+  v
+NestJS API (:3001)
+  |
+  +-- Agent service
+  |     +-- Schema-aware prompt
+  |     +-- Structured query tool
+  |     +-- Gemini or Groq provider
+  |     +-- Response and semantic caches
+  |
+  +-- Database abstraction
+        +-- PostgreSQL
+        +-- MySQL
+        +-- MongoDB
 ```
 
 For each question, the backend:
 
-1. Resolves the selected database connection.
-2. Loads and caches its schema.
-3. Builds a prompt for SQL or MongoDB.
-4. Lets the AI request a query through a structured tool.
-5. Validates and executes the query through the database abstraction.
-6. Sends the result back to the AI for a final answer.
-7. Streams the agent steps and final response to the frontend.
+1. Resolves the active database connection.
+2. Loads the database schema and caches its metadata.
+3. Builds a provider-specific prompt for SQL or MongoDB.
+4. Lets the model request a structured query through an agent tool.
+5. Validates and executes the query through the selected database adapter.
+6. Limits the result size and rejects unsupported write operations.
+7. Sends the query result back to the model for a user-friendly explanation.
+8. Streams the intermediate steps and final response to the frontend.
 
-The database layer uses a shared `DbConnection` abstraction, so the agent does not depend on a specific database driver. The provider layer gives Gemini and Groq the same application-level contract.
+## Architecture and Engineering Decisions
 
-## Engineering Highlights
+### Database abstraction
 
-- **Provider abstraction:** Gemini and Groq share one tool-call interface, allowing the agent loop to switch providers without changing database code.
-- **Database abstraction:** PostgreSQL, MySQL, and MongoDB implement the same connection contract for schema discovery and query execution.
-- **Guarded execution:** SQL is restricted to read queries, result limits are enforced, MongoDB write aggregation stages are rejected, and each agent run has bounded query attempts.
-- **Useful feedback:** Agent steps stream to the UI over Socket.IO, with a REST path when a socket is unavailable.
-- **Performance:** Schema metadata and successful responses are cached; semantic caching can reuse answers to closely related questions.
+PostgreSQL, MySQL, and MongoDB implement a shared `DbConnection` contract. The agent works with the contract rather than with driver-specific code, which keeps query orchestration independent from the database implementation.
 
-This is a portfolio project and local prototype. It does not include user authentication or tenant isolation, so it should only be exposed in a trusted environment. For any deployment with untrusted users, add authentication, authorization per connection, request throttling, and server-side query cancellation. Configure database credentials with read-only privileges as an additional safety boundary.
+### AI provider abstraction
 
-## Current Limitations
+Gemini and Groq implement the same provider-level interface. The application can select a provider explicitly or use `auto` mode to fall back when the preferred provider is unavailable.
 
-- Semantic caching requires a Gemini API key, even when Groq is the primary answer provider.
-- MongoDB schema fields are inferred from a small sample of documents and may not represent every document shape.
-- Database connections are loaded at startup from environment configuration; users cannot add connections through the UI.
-- Query safety checks are defense in depth, not a replacement for database-level read-only credentials.
-- There is no built-in login, user management, or deployment configuration for a public multi-user service.
+### Guarded execution
 
-## Portfolio Walkthrough
+The application applies multiple safety boundaries before returning data:
 
-When presenting this project, connect a sample database, ask a question that needs a join or aggregation, then show the generated query, bounded result table, and chart. Explain the provider and database interfaces, and discuss the security trade-offs of executing model-generated queries. A short screen recording and screenshots of the connected and result states make the repository easier to evaluate.
+- SQL validation allows read-oriented statements and blocks write or administrative keywords.
+- Result limits are configured per connection and capped by the backend.
+- MongoDB supports `find` and `aggregate` operations while rejecting `$out` and `$merge` write stages.
+- Database operations have execution time limits where supported.
+- Agent runs have bounded attempts to avoid uncontrolled model loops.
+- The README and environment configuration recommend database credentials with read-only privileges.
 
-## Stack
+These controls reduce risk but do not replace database-level permissions, authentication, authorization, or request throttling.
 
-**Backend:** NestJS, Fastify, TypeScript, Socket.IO, `pg`, `mysql2`, MongoDB driver, `better-sqlite3`, and `sqlite-vec`.
+### Caching
 
-**Frontend:** Next.js App Router, React, TypeScript, Socket.IO client, Recharts, Lucide, and syntax highlighting.
+- Exact response caching avoids repeated AI calls for the same question, connection, and schema fingerprint.
+- Schema caching reduces repeated introspection work.
+- Optional semantic caching uses Gemini embeddings and `sqlite-vec` to reuse answers for closely related questions.
+
+## Technology Stack
+
+**Backend:** NestJS, Fastify, TypeScript, Socket.IO, Google GenAI SDK, Groq SDK, PostgreSQL `pg`, MySQL `mysql2`, MongoDB driver, `better-sqlite3`, and `sqlite-vec`.
+
+**Frontend:** Next.js App Router, React, TypeScript, Socket.IO client, Recharts, Lucide React, and syntax highlighting.
+
+**Communication:** REST endpoints for request/response operations and Socket.IO for streamed agent events.
+
+## Project Structure
+
+```text
+src/
+  agent/                 Agent loop, prompts, tools, providers, and caches
+  chat/                  REST controller and Socket.IO gateway
+  config/                Environment parsing and application settings
+  database/              Connection manager, schema service, and adapters
+  main.ts                NestJS application bootstrap
+
+frontend/
+  src/app/               Next.js layout, page, and global styles
+  src/components/        Chat, schema, SQL, table, chart, and UI components
+
+data/                    Local semantic-cache database, ignored by Git
+```
 
 ## Requirements
 
 - Node.js and npm
 - One reachable PostgreSQL, MySQL, or MongoDB database
 - At least one AI provider key:
-  - `GEMINI_API_KEY`, or
+  - `GEMINI_API_KEY`
   - `GROQ_API_KEY`
 
-The application does not create the application database. The configured database and its credentials must already exist.
+The application does not create or provision the connected database. The database and credentials must already exist.
 
 ## Quick Start
 
 ### 1. Install dependencies
 
-From the repository root:
+Run from the repository root:
 
 ```powershell
 npm install
-cd frontend
+Push-Location frontend
 npm install
-cd ..
+Pop-Location
 ```
 
-### 2. Create the backend environment file
+### 2. Configure the backend
+
+Create a local environment file:
 
 ```powershell
-copy .env.example .env
+Copy-Item .env.example .env
 ```
 
-Edit `.env` and add at least one database connection and one AI provider key. For a local MySQL database named `db_agent`:
+Add a database connection and an AI provider key. Example for MySQL:
 
 ```env
 DATABASE_URL=mysql://user:password@localhost:3306/db_agent
@@ -116,30 +158,28 @@ GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-3.6-flash
 ```
 
-If a password contains URL-reserved characters such as `@`, `#`, `/`, or `:`, URL-encode it.
+Do not commit `.env`. If a database password contains URL-reserved characters such as `@`, `#`, `/`, or `:`, URL-encode the password before placing it in the connection URL.
 
 ### 3. Start the backend
 
-In one terminal:
+In the first terminal:
 
 ```powershell
-npm run start:dev
+npm run dev
 ```
 
-The backend listens on `http://localhost:3001` by default.
+The backend runs at `http://localhost:3001` by default.
 
 ### 4. Start the frontend
 
 In a second terminal:
 
 ```powershell
-cd frontend
+Push-Location frontend
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-The frontend defaults to `http://localhost:3001` for the backend. To change it, create `frontend/.env.local`:
+Open `http://localhost:3000` in a browser. The frontend uses `http://localhost:3001` by default. To change the backend URL, create `frontend/.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001
@@ -147,19 +187,13 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 
 ## Configuration
 
-Database configuration is read in this order:
+Database configuration is resolved in this order:
 
 ```text
 DATABASES JSON -> DATABASE_URL1, DATABASE_URL2, ... -> DATABASE_URL
 ```
 
-### Single database
-
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/analytics
-```
-
-The URL prefix determines the database type:
+### Supported database URLs
 
 ```text
 postgresql://  PostgreSQL
@@ -169,7 +203,7 @@ mongodb://     MongoDB
 
 ### Multiple databases
 
-Numbered variables are the simplest option:
+Numbered variables are convenient for local development:
 
 ```env
 DATABASE_URL1=postgresql://user:password@localhost:5432/analytics
@@ -212,32 +246,30 @@ CACHE_TTL=300
 CACHE_SIMILARITY_THRESHOLD=0.92
 ```
 
-Provider modes are:
+Provider modes:
 
 - `gemini`: use Gemini only
 - `groq`: use Groq only
-- `auto`: try Gemini first, then Groq if the first provider fails
+- `auto`: try Gemini first, then Groq if the first provider is unavailable
 
-Semantic caching is enabled only when `GEMINI_API_KEY` is available and `CACHE_TTL` is greater than zero. Its local SQLite file is created under `data/` and is ignored by Git.
+Semantic caching requires `GEMINI_API_KEY` and a positive `CACHE_TTL`. Its local SQLite database is created under `data/`, which is ignored by Git.
 
-## Project Structure
+## API Surface
 
-```text
-src/
-  agent/              AI providers, tools, prompts, and agent loop
-  chat/               REST controller and Socket.IO gateway
-  config/             Environment configuration
-  database/           Connection manager, schema service, and drivers
-  main.ts             NestJS application bootstrap
+The backend exposes these HTTP routes:
 
-frontend/
-  src/app/            Next.js layout and chat page
-  src/components/     Schema, chat, SQL, table, and chart components
-```
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Check whether the API is running |
+| `GET` | `/connections` | List configured database connections |
+| `GET` | `/schema` | Return schema metadata for a connection |
+| `POST` | `/chat` | Run an agent question and return the response |
+
+The Socket.IO gateway uses the `/chat` namespace and accepts the `query` event for streamed agent responses.
 
 ## Verification and Production Builds
 
-Backend:
+Run backend checks from the repository root:
 
 ```powershell
 npm run typecheck
@@ -245,13 +277,12 @@ npm run build
 npm start
 ```
 
-Frontend:
+Run frontend checks from `frontend/`:
 
 ```powershell
-cd frontend
 npm run typecheck
 npm run build
 npm start
 ```
 
-The backend production process uses port `3001`; the frontend production process uses port `3000`.
+The production backend uses port `3001`; the production frontend uses port `3000`.
